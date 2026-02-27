@@ -1,0 +1,193 @@
+I. CREATING NODE LABELS
+
+// BUYER_SELLER NODE LABELS
+LOAD CSV WITH HEADERS FROM 'file:///transaction.csv' AS row
+MERGE (a:Buyer {name: row.Buyer})
+MERGE (b:Seller {name: row.Seller})
+
+MERGE (a)-[t:TRADES {
+    Date: row.Date,
+    Time: row.Time,
+    Security: row.Security
+}]->(b)
+
+SET t.Transaction_Amount = toFloat(row.Transaction_Amount),
+    t.Price = toFloat(row.Price);
+
+
+II. Queries on BUYER_SELLER Graph
+
+Basic Counts
+
+1. Find the total number of Buyers
+   MATCH (b:Buyer)
+   RETURN count(b) AS total_buyers;
+
+2. Find the total number of Sellers
+  MATCH (s:Seller)
+  RETURN count(s) AS total_sellers;
+
+3. //Total Transactions
+MATCH (:Buyer)-[r:TRADE]->(:Seller)
+RETURN count(r) AS total_transactions;
+
+Volume & Value Analytics
+
+4. //Total purchase amount per Buyer
+MATCH (b:Buyer)-[r:TRADE]->()
+RETURN b.name, sum(r.Transaction_Amount) AS total_purchase
+ORDER BY total_purchase DESC;
+
+5. //Total revenue per Seller
+MATCH ()-[r:TRADE]->(s:Seller)
+RETURN s.name, sum(r.Transaction_Amount) AS total_sales
+ORDER BY total_sales DESC;
+
+6. //Average transaction amount
+MATCH ()-[r:TRADE]->()
+RETURN avg(r.Transaction_Amount) AS avg_transaction;
+
+
+Relationship-Based Analytics
+
+7. //Most frequent Buyer–Seller pairs
+MATCH (b:Buyer)-[r:TRADE]->(s:Seller)
+RETURN b.name, s.name, count(*) AS trades
+ORDER BY trades DESC
+LIMIT 10;
+
+8.//Buyers trading with many sellers
+MATCH (b:Buyer)-[:TRADE]->(s:Seller)
+RETURN b.name, count(DISTINCT s) AS seller_count
+ORDER BY seller_count DESC;
+
+9.//Sellers serving many buyers
+MATCH (b:Buyer)-[:TRADE]->(s:Seller)
+RETURN s.name, count(DISTINCT b) AS buyer_count
+ORDER BY buyer_count DESC;
+
+
+Security-Level Analytics
+
+10. // Most traded securities
+MATCH ()-[r:TRADE]->()
+RETURN r.Security, count(*) AS trades
+ORDER BY trades DESC;
+
+11.//Total value per security
+MATCH ()-[r:TRADE]->()
+RETURN r.Security, sum(r.Transaction_Amount) AS total_value
+ORDER BY total_value DESC;
+
+Temporal Analytics
+
+12. Trades per date
+MATCH ()-[r:TRADE]->()
+RETURN r.Date, count(*) AS trades
+ORDER BY r.Date;
+
+13. Peak trading hour
+MATCH ()-[r:TRADE]->()
+WITH substring(r.Time,0,2) AS hour
+RETURN hour, count(*) AS trades
+ORDER BY trades DESC;
+
+Suspicious / High-Value Trading
+14. //High-value transactions
+MATCH (b:Buyer)-[r:TRADE]->(s:Seller)
+WHERE r.Transaction_Amount > 100000
+RETURN b.name, s.name, r.Transaction_Amount
+ORDER BY r.Transaction_Amount DESC;
+
+15. //Repeated trading same security between pair
+
+MATCH (b:Buyer)-[r:TRADE]->(s:Seller)
+RETURN b.name, s.name, r.Security, count(*) AS freq
+ORDER BY freq DESC
+LIMIT 10;
+
+Neighborhood Analysis
+
+16. Sellers connected to a Buyer
+MATCH (b:Buyer {name:"Alice"})-[:TRADE]->(s:Seller)
+RETURN s;
+
+17. //Buyers connected to a Seller
+MATCH (b:Buyer)-[:TRADE]->(s:Seller {name:"Ravi"})
+RETURN b;
+
+
+Bridge / Intermediary Sellers (proxy centrality)
+18. //MATCH (b1:Buyer)-[:TRADE]->(s:Seller)<-[:TRADE]-(b2:Buyer)
+WHERE b1 <> b2
+RETURN s.name, count(*) AS bridging_score
+ORDER BY bridging_score DESC
+LIMIT 10;
+
+
+Buyer–Buyer Projection
+
+19. Basic Buyer–Buyer edges
+MATCH (b1:Buyer)-[:TRADE]->(s:Seller)<-[:TRADE]-(b2:Buyer)
+WHERE b1 <> b2
+MERGE (b1)-[:CO_BUYER]->(b2);
+
+(:Buyer)-[:CO_BUYER]->(:Buyer)
+
+20. //Weighted Buyer–Buyer projection (shared sellers count)//Weight = number of common sellers
+MATCH (b1:Buyer)-[:TRADE]->(s:Seller)<-[:TRADE]-(b2:Buyer)
+WHERE b1 <> b2
+WITH b1, b2, count(DISTINCT s) AS weight
+MERGE (b1)-[r:CO_BUYER]->(b2)
+SET r.weight = weight;
+
+21.//Strong buyer similarity (filter)
+MATCH (b1:Buyer)-[:TRADES]->(s:Seller)<-[:TRADES]-(b2:Buyer)
+WHERE b1 <> b2
+WITH b1, b2, count(DISTINCT s) AS weight
+WHERE weight >= 3
+RETURN b1.name, b2.name, weight
+ORDER BY weight DESC;
+
+22. Seller–Seller Projection
+22.// Basic Seller–Seller edges
+MATCH (s1:Seller)<-[:TRADE]-(b:Buyer)-[:TRADE]->(s2:Seller)
+WHERE s1 <> s2
+MERGE (s1)-[:CO_SELLER]->(s2);
+
+23.//Projection graph:
+
+(:Seller)-[:CO_SELLER]->(:Seller)
+
+24.// Weighted Seller–Seller projection
+MATCH (s1:Seller)<-[:TRADE]-(b:Buyer)-[:TRADE]->(s2:Seller)
+WHERE s1 <> s2
+WITH s1, s2, count(DISTINCT b) AS weight
+MERGE (s1)-[r:CO_SELLER]->(s2)
+SET r.weight = weight;
+
+Weight = number of shared buyers
+
+25. //Strong seller similarity
+MATCH (s1:Seller)<-[:TRADE]-(b:Buyer)-[:TRADE]->(s2:Seller)
+WHERE s1 <> s2
+WITH s1, s2, count(DISTINCT b) AS weight
+WHERE weight >= 3
+RETURN s1.name, s2.name, weight
+ORDER BY weight DESC;
+
+26. //Similarity score (Jaccard-like) for Buyers
+MATCH (b1:Buyer)-[:TRADE]->(s:Seller)
+WITH b1, collect(DISTINCT s) AS s1
+
+MATCH (b2:Buyer)-[:TRADE]->(s:Seller)
+WHERE b1 <> b2
+WITH b1, s1, b2, collect(DISTINCT s) AS s2
+
+WITH b1, b2,
+     size([x IN s1 WHERE x IN s2]) AS inter,
+     size(s1) + size(s2) - size([x IN s1 WHERE x IN s2]) AS union
+
+RETURN b1.name, b2.name, inter*1.0/union AS jaccard
+ORDER BY jaccard DESC
+LIMIT 10;

@@ -1,0 +1,54 @@
+						Graph Data Science
+Create a Graph
+1. CALL gds.graph.project(
+  'txnGraph',
+  ['Buyer','Seller'],
+  {
+    TRANSACTION: {
+      properties: ['Transaction_Amount','Price']
+    }
+  }
+);
+
+2. Basic Graph Statistics
+CALL gds.graph.list('txnGraph');
+
+
+Degree of nodes
+3. CALL gds.degree.stream('txnGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS node, score
+ORDER BY score DESC;
+
+4. Centrality Algorithms
+
+a) Degree
+CALL gds.degree.stream('txnGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS node, score
+ORDER BY score DESC;
+
+b) PageRank (important for influence)
+CALL gds.pageRank.stream('txnGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS node, score
+ORDER BY score DESC
+LIMIT 20;
+
+c)Betweenness Centrality
+CALL gds.betweenness.stream('txnGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS node, score
+ORDER BY score DESC;
+
+d) Closeness Centrality
+CALL gds.closeness.stream('txnGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS node, score
+ORDER BY score DESC;
+
+e) Eigenvector Centrality
+CALL gds.eigenvector.stream('txnGraph')
+YIELD nodeId, score
+RETURN gds.util.asNode(nodeId).name AS node, score
+ORDER BY score DESC;

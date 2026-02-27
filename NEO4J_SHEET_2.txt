@@ -1,0 +1,171 @@
+						Neo4j Basic Cypher Queries
+
+a) List all node labels
+   
+   CALL db.labels()
+
+b) List all relationship types
+   
+   CALL db.relationshipTypes()
+
+c) See the schema through visualization
+  
+   CALL db.schema.visualization()
+
+
+
+1. Creating Nodes with Properties
+
+ CREATE (b:Buyer {id: 1, name: "Ram", city: "Hyderabad"})
+
+2. Multiple nodes
+CREATE
+(b1:Buyer {id: 2, name: "Hari", city: "Chennai"}),
+(b2:Buyer {id: 3, name: "Gopal", city: "Mumbai"})
+
+3. Creating Relationships with Properties
+  MATCH (b:Buyer {id:1}), (s:Seller {id:10})
+  CREATE (b)-[:TRANSACTION {
+    amount: 50000,
+    date: "2025-06-01",
+    security: "GSEC"
+}]->(s)
+
+4. Updating Nodes (SET)
+Add / update property
+
+MATCH (b:Buyer {id:1})
+SET b.city = "Bangalore"
+
+5. Add multiple properties
+   MATCH (b:Buyer {id:1})
+   SET b.age = 30,
+    b.status = "Active"
+
+6. Replace all properties
+MATCH (b:Buyer {id:1})
+SET b = {id:1, name:"Ravi Kumar", city:"DELHI"}
+
+7. Merge properties 
+MATCH (b:Buyer {id:1})
+SET b += {age: 31, risk_score: 0.7}
+
+8. REMOVE Operator
+MATCH (b:Buyer {id:1})
+REMOVE b.risk_score
+
+9. DELETE Nodes
+   Delete node (no relationships)
+MATCH (b:Buyer {id:2})
+DELETE b 
+
+10. Delete with relationships
+
+MATCH (b:Buyer {id:3})
+DETACH DELETE b
+
+11. MERGE (Create if not exists)
+
+MERGE (b:Buyer {id:5})
+SET b.name = "Sai"
+
+12. Relationship merge
+MATCH (b:Buyer {id:1}), (s:Seller {id:10})
+MERGE (b)-[:TRANSACTION]->(s)
+
+13. Comparison operators
+  MATCH (b:Buyer)
+WHERE b.age > 30
+RETURN b
+
+14. MATCH (b:Buyer)
+WHERE b.city="Hyderabad" AND b.age>25
+RETURN b
+
+15. String operators ---STARTS WITH, ENDS WITH, CONTAINS
+
+MATCH (b:Buyer)
+WHERE b.name STARTS WITH "Ra"
+RETURN b
+
+16. List operators
+  MATCH (b:Buyer)
+WHERE b.city IN ["Hyderabad","Chennai"]
+RETURN b
+
+17. Conditional Update (CASE)
+
+MATCH (b:Buyer)
+SET b.risk =
+CASE
+  WHEN b.amount > 100000 THEN "High"
+  WHEN b.amount > 50000 THEN "Medium"
+  ELSE "Low"
+END
+
+18. Get all the nodes of a label
+
+a) MATCH(n: Person) 
+   return n limit 25
+
+b) Count total nodes of a label
+
+  Match(n: Person) return count(n)
+
+c) Find the nodes with a property condition
+  
+   Match(a: Person)
+   where a.age>50
+   return a
+
+d) Find a node by exact property
+
+  Match(u: USER{userId: "ram"})
+  return u 
+
+
+19. Relationship Queries
+
+a) Find connected nodes
+
+  MATCH(u: USER) -[r:TRANSFERRED_TO] -> (a: ACCOUNT)
+  return u,r,a limit 25
+
+b) Count Relationships
+      MATCH() -[r:TRANSFERRED_TO] -> ( )
+  return count(r)
+
+c) Find relationships with properties
+
+  MATCH(u) -[r:TRANSFERRED_TO] -> (v)
+  where r.amount>5000
+  return u,v,r
+
+d) Simple 2-hop pattern
+  MATCH(u: USER) -[r:OWNS] -> (a: ACCOUNT)-[:TRANSFERED_TO]-> (b:Account) 
+  Return u,a,b
+
+20. Variable Path Lengths:
+
+a) Match p = (a :Account) - [: TRANSFERED_TO*1..3] ->(b:Account)
+   Return p
+
+b) Filtering Conditions
+
+  Match(t: Transaction)
+  where t.amount>100 and t.country = 'IN'
+  return t
+
+c) Using IN:
+  Match(u: USER)
+  where u.type IN ["Merchant", "Agent"]
+  Return u
+
+* Find number of nodes and relationships
+
+ MATCH (n:Buyer)
+RETURN count(n) AS totalSellers,
+       sum(COUNT { (n)-->() }) AS totalOutgoingRels;
+
+
+Config: dbms.security.procedures.unrestricted=,jwt.security.*,gds.*,apoc.*
